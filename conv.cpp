@@ -83,7 +83,7 @@ public:
 	{
 		float x = sqrt((float)img->pixels() / 6.);
 		*h = round(x);
-		*w = round(x * 6.);
+		*w = *h * 6;
 	}
 
 	vec2 latLongToUV(const vec2 &vec) const { throw 0; return vec2(); }
