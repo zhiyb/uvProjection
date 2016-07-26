@@ -63,7 +63,7 @@ public:
 	virtual vec2 latLongToUV(const vec2 &vec) const = 0;
 	virtual vec2 uvToLatLong(const vec2 &vec) const = 0;
 
-	// Theta direction: +X to +Z
+	// Theta direction: +X to +Z, phi direction: +Z to -Z
 	static vec2 euclideanToLatLong(const vec3 &vec) { return vec2(atan2(vec.z, vec.x), acos(vec.normalized().dot(vec3(0., 1., 0.)))); }
 };
 
@@ -113,12 +113,6 @@ private:
 
 static void render(Image *src, const vec2 &srcUV, Image *dst, const vec2 &dstUV)
 {
-#if 0
-	//printf("(%g, %g)\t<-\t(%g, %g)\n", dstUV.x, dstUV.y, srcUV.x, srcUV.y);
-	vec2 sc = src->uvToCoordinate(srcUV), dc = dst->uvToCoordinate(dstUV);
-	printf("(%g, %g)\t<-\t(%g, %g)\n", dc.x, dc.y, sc.x, sc.y);
-	//printf("(%g, %g)\n", dstUV.x * dst->w, dstUV.y * dst->h);
-#endif
 	memcpy(dst->uv(dstUV), src->uv(srcUV), src->n);
 }
 
@@ -167,7 +161,6 @@ int main(int argc, char *argv[])
 
 	puts("Saving output image...");
 	stbi_write_png(argv[2], dst.w, dst.h, dst.n, dst.ptr, dst.w * dst.n);
-	//stbi_write_png(argv[2], src.w, src.h, src.n, src.ptr, src.w * src.n);
 
 	return 0;
 }
