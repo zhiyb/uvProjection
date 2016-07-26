@@ -139,6 +139,7 @@ int main(int argc, char *argv[])
 	Texture *target = new Cubemap;
 	if (!source || !target) {
 		fputs("Error creating texture transformation\n", stderr);
+		stbi_image_free(src.ptr);
 		return 3;
 	}
 
@@ -146,6 +147,7 @@ int main(int argc, char *argv[])
 	target->targetSize(&src, &dst.w, &dst.h);
 	if (!dst.alloc()) {
 		fputs("Error allocating image memory\n", stderr);
+		stbi_image_free(src.ptr);
 		return 4;
 	}
 	printf("Output image size: %ux%u\n", dst.w, dst.h);
@@ -162,5 +164,7 @@ int main(int argc, char *argv[])
 	puts("Saving output image...");
 	stbi_write_png(argv[2], dst.w, dst.h, dst.n, dst.ptr, dst.w * dst.n);
 
+	stbi_image_free(src.ptr);
+	free(dst.ptr);
 	return 0;
 }
