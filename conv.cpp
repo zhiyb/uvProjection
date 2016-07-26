@@ -42,7 +42,7 @@ struct Image
 	bool alloc() { return !!(ptr = malloc(w * h * n)); }
 	size_t pixels() const { return w * h; }
 
-	static float warp(const float v) { return v < 0. ? fmod(v, 1.) + 1. : v; }
+	static float warp(const float v) { return v < 0. ? fmodf(v, 1.) + 1. : v; }
 	void *uv(const vec2 &uv)
 	{
 		int u = (int)round(warp(uv.x) * w) % w;
@@ -63,6 +63,7 @@ public:
 	virtual vec2 latLongToUV(const vec2 &vec) const = 0;
 	virtual vec2 uvToLatLong(const vec2 &vec) const = 0;
 
+	// Theta direction: +X to +Z
 	static vec2 euclideanToLatLong(const vec3 &vec) { return vec2(atan2(vec.z, vec.x), acos(vec.normalized().dot(vec3(0., 1., 0.)))); }
 };
 
@@ -71,7 +72,7 @@ class LatLong : public Texture
 public:
 	void targetSize(Image *img, int *w, int *h) const { throw 0; }
 
-	vec2 latLongToUV(const vec2 &vec) const { return vec2(vec.x / 2. / M_PI, 1. - vec.y / M_PI); }
+	vec2 latLongToUV(const vec2 &vec) const { return vec2(vec.x / 2. / M_PI, vec.y / M_PI); }
 	vec2 uvToLatLong(const vec2 &vec) const { throw 0; return vec2(); }
 };
 
@@ -91,21 +92,21 @@ public:
 private:
 	vec3 uvToEuclidean(const vec2 &vec) const
 	{
-		float u = fmod(vec.x * 6., 1.) * 2. - 1.;
+		float u = fmodf(vec.x * 6., 1.) * 2. - 1.;
 		float v = vec.y * 2. - 1.;
 		switch ((int)(vec.x * 6.)) {
 		case 0:		// +X
-			return vec3(1., v, u);
+			return vec3(1., -v, u);
 		case 1:		// -X
-			return vec3(-1., v, -u);
+			return vec3(-1., -v, -u);
 		case 2:		// +Y
-			return vec3(-u, 1., -v);
+			return vec3(-u, 1., v);
 		case 3:		// -Y
-			return vec3(-u, -1., v);
+			return vec3(-u, -1., -v);
 		case 4:		// +Z
-			return vec3(-u, v, 1);
+			return vec3(-u, -v, 1);
 		default:	// -Z
-			return vec3(u, v, -1);
+			return vec3(u, -v, -1);
 		}
 	}
 };
