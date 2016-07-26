@@ -12,26 +12,26 @@
 struct vec2
 {
 	vec2() : x(0.), y(0.) {}
-	vec2(double x, double y) : x(x), y(y) {}
+	vec2(float x, float y) : x(x), y(y) {}
 
-	double x, y;
+	float x, y;
 };
 
 struct vec3
 {
 	vec3() : x(0.), y(0.), z(0.) {}
-	vec3(double x, double y, double z) : x(x), y(y), z(z) {}
+	vec3(float x, float y, float z) : x(x), y(y), z(z) {}
 	vec3 normalized() const
 	{
-		double l = sqrt(x * x + y * y + z * z);
+		float l = sqrt(x * x + y * y + z * z);
 		return vec3(x / l, y / l, z / l);
 	}
-	double dot(const vec3 &v) const
+	float dot(const vec3 &v) const
 	{
 		return v.x * x + v.y * y + v.z * z;
 	}
 
-	double x, y, z;
+	float x, y, z;
 };
 
 /* }}} */
@@ -42,7 +42,7 @@ struct Image
 	bool alloc() { return !!(ptr = malloc(w * h * n)); }
 	size_t pixels() const { return w * h; }
 
-	static double warp(const double v) { return v < 0. ? fmod(v, 1.) + 1. : v; }
+	static float warp(const float v) { return v < 0. ? fmod(v, 1.) + 1. : v; }
 	void *uv(const vec2 &uv)
 	{
 		int u = (int)round(warp(uv.x) * w) % w;
@@ -71,7 +71,7 @@ class LatLong : public Texture
 public:
 	void targetSize(Image *img, int *w, int *h) const { throw 0; }
 
-	vec2 latLongToUV(const vec2 &vec) const { return vec2(vec.x / M_PI_2, vec.y / M_PI); }
+	vec2 latLongToUV(const vec2 &vec) const { return vec2(vec.x / 2. / M_PI, 1. - vec.y / M_PI); }
 	vec2 uvToLatLong(const vec2 &vec) const { throw 0; return vec2(); }
 };
 
@@ -80,9 +80,9 @@ class Cubemap : public Texture
 public:
 	void targetSize(Image *img, int *w, int *h) const
 	{
-		double x = sqrt((double)img->pixels() / 6.);
-		*h = x;
-		*w = x * 6.;
+		float x = sqrt((float)img->pixels() / 6.);
+		*h = round(x);
+		*w = round(x * 6.);
 	}
 
 	vec2 latLongToUV(const vec2 &vec) const { throw 0; return vec2(); }
@@ -91,21 +91,21 @@ public:
 private:
 	vec3 uvToEuclidean(const vec2 &vec) const
 	{
-		double u = fmod(vec.x * 6., 1.) * 2. - 1.;
-		double v = vec.y * 2. - 1.;
+		float u = fmod(vec.x * 6., 1.) * 2. - 1.;
+		float v = vec.y * 2. - 1.;
 		switch ((int)(vec.x * 6.)) {
 		case 0:		// +X
-			return vec3(1., v, -u);
+			return vec3(1., v, u);
 		case 1:		// -X
-			return vec3(-1., v, u);
+			return vec3(-1., v, -u);
 		case 2:		// +Y
-			return vec3(u, 1., -v);
+			return vec3(-u, 1., -v);
 		case 3:		// -Y
-			return vec3(u, -1., v);
+			return vec3(-u, -1., v);
 		case 4:		// +Z
-			return vec3(u, v, 1);
+			return vec3(-u, v, 1);
 		default:	// -Z
-			return vec3(-u, v, -1);
+			return vec3(u, v, -1);
 		}
 	}
 };
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
 	puts("Rendering...");
 	for (int u = 0; u != dst.w; u++)
 		for (int v = 0; v != dst.h; v++) {
-			vec2 dstUV((double)u / (double)dst.w, (double)v / (double)dst.h);
+			vec2 dstUV((float)u / (float)dst.w, (float)v / (float)dst.h);
 			vec2 srcUV(source->latLongToUV(target->uvToLatLong(dstUV)));
 			render(&src, srcUV, &dst, dstUV);
 		}
