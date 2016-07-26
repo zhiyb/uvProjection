@@ -1,7 +1,7 @@
 SRC	= conv.cpp
 OBJ	= $(subst .c,,$(SRC:.cpp=))
 
-CXXFLAGS	+= -Wall -O2
+CXXFLAGS	+= -Wall -O2 -lm
 
 all: $(OBJ)
 

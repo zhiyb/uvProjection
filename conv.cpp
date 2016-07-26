@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/time.h>
 #include <math.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -128,13 +129,19 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	struct timeval tStart, tEnd, tElapsed;
+
+	puts("Loading input image...");
 	Image src, dst;
+	gettimeofday(&tStart, NULL);
 	if (!src.load(argv[1])) {
 		fputs("Error loading input image\n", stderr);
 		return 2;
 	}
+	gettimeofday(&tEnd, NULL);
+	timersub(&tEnd, &tStart, &tElapsed);
+	printf("Time elapsed: %ld.%06ld\n", tElapsed.tv_sec, tElapsed.tv_usec);
 
-	puts("Loading input image...");
 	Texture *source = new LatLong;
 	Texture *target = new Cubemap;
 	if (!source || !target) {
@@ -153,16 +160,24 @@ int main(int argc, char *argv[])
 	printf("Output image size: %ux%u\n", dst.w, dst.h);
 
 	puts("Rendering...");
+	gettimeofday(&tStart, NULL);
 	for (int u = 0; u != dst.w; u++)
 		for (int v = 0; v != dst.h; v++) {
 			vec2 dstUV((float)u / (float)dst.w, (float)v / (float)dst.h);
 			vec2 srcUV(source->latLongToUV(target->uvToLatLong(dstUV)));
 			render(&src, srcUV, &dst, dstUV);
 		}
+	gettimeofday(&tEnd, NULL);
+	timersub(&tEnd, &tStart, &tElapsed);
 	puts("Rendering finished.");
+	printf("Time elapsed: %ld.%06ld\n", tElapsed.tv_sec, tElapsed.tv_usec);
 
 	puts("Saving output image...");
+	gettimeofday(&tStart, NULL);
 	stbi_write_png(argv[2], dst.w, dst.h, dst.n, dst.ptr, dst.w * dst.n);
+	gettimeofday(&tEnd, NULL);
+	timersub(&tEnd, &tStart, &tElapsed);
+	printf("Time elapsed: %ld.%06ld\n", tElapsed.tv_sec, tElapsed.tv_usec);
 
 	stbi_image_free(src.ptr);
 	free(dst.ptr);
