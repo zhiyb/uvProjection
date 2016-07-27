@@ -70,7 +70,6 @@ struct Image
 /* }}} */
 
 /* {{{ Transformations */
-#ifndef CLASS
 static inline vec2 euclideanToLatLong(const vec3 &vec)
 {
 	return vec2(atan2(vec.z, vec.x), acos(vec.normalized().dot(vec3(0., 1., 0.))));
@@ -97,31 +96,6 @@ static inline vec3 cubemap_uvToEuclidean(const vec2 &vec)
 	int n = (int)u;
 	u -= n;
 	float v = vec.y * 2. - 1.;
-#if 0
-	switch (n) {
-	case 0:		// +X
-		return vec3(1., -v, u);
-	case 1:		// -X
-		return vec3(-1., -v, -u);
-	case 2:		// +Y
-		return vec3(-u, 1., v);
-	case 3:		// -Y
-		return vec3(-u, -1., -v);
-	case 4:		// +Z
-		return vec3(-u, -v, 1);
-	default:	// -Z
-		return vec3(u, -v, -1);
-	}
-#else
-#if 0
-	float p1 = 1., n1 = -1.;
-	float nu = -u, nv = -v;
-	const float *x[6] = {&p1, &n1, &nu, &nu, &nu, &u};
-	const float *y[6] = {&nv, &nv, &p1, &n1, &nv, &nv};
-	const float *z[6] = {&u, &nu, &v, &nv, &p1, &n1};
-	//n %= 6;
-	return vec3(*x[n], *y[n], *z[n]);
-#else
 	vec3 faces[6] = {
 		vec3(1., -v, u),	// +X
 		vec3(-1., -v, -u),	// -X
@@ -131,8 +105,6 @@ static inline vec3 cubemap_uvToEuclidean(const vec2 &vec)
 		vec3(u, -v, -1),	// -Z
 	};
 	return faces[n % 6];
-#endif
-#endif
 }
 
 static inline vec2 cubemap_uvToLatLong(const vec2 &vec)
@@ -146,51 +118,6 @@ static void (*const targetSize)(Image *img, int *w, int *h)	= latLong_targetSize
 static vec2 (*const latLongToUV)(const vec2 &vec)		= latLong_latLongToUV;
 // Target texture transformation
 static vec2 (*const uvToLatLong)(const vec2 &vec)		= cubemap_uvToLatLong;
-#else
-class Texture
-{
-public:
-	virtual void targetSize(Image *img, int *w, int *h) const = 0;
-
-	virtual vec2 latLongToUV(const vec2 &vec) const = 0;
-	virtual vec2 uvToLatLong(const vec2 &vec) const = 0;
-
-	// Theta direction: +X to +Z, phi direction: +Z to -Z
-	static vec2 euclideanToLatLong(const vec3 &vec) { return vec2(atan2(vec.z, vec.x), acos(vec.normalized().dot(vec3(0., 1., 0.)))); }
-};
-
-class LatLong : public Texture
-{
-public:
-	void targetSize(Image *img, int *w, int *h) const { throw 0; }
-
-	vec2 latLongToUV(const vec2 &vec) const { return vec2(vec.x / 2. / M_PI, vec.y / M_PI); }
-	vec2 uvToLatLong(const vec2 &vec) const { throw 0; return vec2(); }
-};
-
-class Cubemap : public Texture
-{
-public:
-	void targetSize(Image *img, int *w, int *h) const
-	{
-		float x = sqrt((float)img->pixels() / 6.);
-		*h = round(x);
-		*w = *h * 6;
-	}
-
-	vec2 latLongToUV(const vec2 &vec) const { throw 0; return vec2(); }
-	vec2 uvToLatLong(const vec2 &vec) const { return euclideanToLatLong(uvToEuclidean(vec)); }
-
-private:
-	vec3 uvToEuclidean(const vec2 &vec) const
-	{
-		float u = vec.x * 6.;
-		int n = (int)u;
-		u -= n;
-		float v = vec.y * 2. - 1.;
-	}
-};
-#endif
 /* }}} */
 
 static void help()
@@ -218,22 +145,8 @@ int main(int argc, char *argv[])
 	timersub(&tEnd, &tStart, &tElapsed);
 	printf("Time elapsed: %ld.%06ld\n", tElapsed.tv_sec, tElapsed.tv_usec);
 
-#ifdef CLASS
-	LatLong *source = new LatLong;
-	Cubemap *target = new Cubemap;
-	if (!source || !target) {
-		fputs("Error creating texture transformation\n", stderr);
-		stbi_image_free(src.ptr);
-		return 3;
-	}
-#endif
-
 	dst.n = src.n;
-#ifndef CLASS
 	targetSize(&src, &dst.w, &dst.h);
-#else
-	target->targetSize(&src, &dst.w, &dst.h);
-#endif
 	if (!dst.alloc()) {
 		fputs("Error allocating image memory\n", stderr);
 		stbi_image_free(src.ptr);
@@ -247,11 +160,7 @@ int main(int argc, char *argv[])
 	for (int u = 0; u != dst.w; u++)
 		for (int v = 0; v != dst.h; v++) {
 			vec2 dstUV(((float)u + 0.5) / (float)dst.w, ((float)v + 0.5) / (float)dst.h);
-#ifndef CLASS
 			vec2 srcUV(latLongToUV(uvToLatLong(dstUV)));
-#else
-			vec2 srcUV(source->latLongToUV(target->uvToLatLong(dstUV)));
-#endif
 			memcpy(ptr, src.uv(srcUV), src.n);
 			ptr += 3;
 
