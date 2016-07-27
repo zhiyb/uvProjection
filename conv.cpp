@@ -98,7 +98,7 @@ static inline void cubemap_targetSize(Image *img, int *w, int *h)
 	*w = *h * 6;
 }
 
-static inline vec3 cubemap_uvToEuclidean(const vec2 &vec, int face)
+static inline vec3 cubemap_uvToEuclidean(const vec2 &vec, const unsigned int face)
 {
 	float u = vec.x * 2. - 1.;
 	float v = vec.y * 2. - 1.;
@@ -172,23 +172,26 @@ static inline void generic_rendering(const Image *src, Image *dst)
 
 static inline void cubemap_rendering(const Image *src, Image *dst)
 {
-	int s = dst->h, w = dst->w, n = dst->n;
+	const int s = dst->h, w = dst->w, n = dst->n;
+	uint8_t *line = (uint8_t *)dst->ptr;
 	for (int v = 0; v != s; v++) {
-		uint8_t *line = (uint8_t *)dst->ptr + v * w * n;
+		uint8_t *ptr = line;
 		for (int u = 0; u != s; u++) {
 			vec2 dstUV(((float)u + 0.5) / (float)s, ((float)v + 0.5) / (float)s);
 #if 0
 			for (int f = 0; f != 6; f++)
-				memcpy(line + (u + f * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, f))), src->n);
+				memcpy(ptr + (u + f * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, f))), src->n);
 #else
-			memcpy(line + (u + 0 * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 0))), src->n);
-			memcpy(line + (u + 1 * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 1))), src->n);
-			memcpy(line + (u + 2 * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 2))), src->n);
-			memcpy(line + (u + 3 * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 3))), src->n);
-			memcpy(line + (u + 4 * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 4))), src->n);
-			memcpy(line + (u + 5 * s) * n, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 5))), src->n);
+			memcpy(ptr + s * n * 0, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 0))), src->n);
+			memcpy(ptr + s * n * 1, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 1))), src->n);
+			memcpy(ptr + s * n * 2, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 2))), src->n);
+			memcpy(ptr + s * n * 3, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 3))), src->n);
+			memcpy(ptr + s * n * 4, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 4))), src->n);
+			memcpy(ptr + s * n * 5, src->uv(latLongToUV(cubemap_uvToLatLong(dstUV, 5))), src->n);
+			ptr += n;
 #endif
 		}
+		line += w * n;
 	}
 }
 
