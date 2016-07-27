@@ -159,6 +159,17 @@ static vec2 (*const uvToLatLong)(const vec2 &vec)
 /* }}} */
 
 /* {{{ Rendering */
+static inline void generic_rendering(const Image *src, Image *dst)
+{
+	uint8_t *ptr = (uint8_t *)dst->ptr;
+	for (int v = 0; v != dst->h; v++)
+		for (int u = 0; u != dst->w; u++) {
+			vec2 dstUV(((float)u + 0.5) / (float)dst->w, ((float)v + 0.5) / (float)dst->h);
+			memcpy(ptr, src->uv(latLongToUV(uvToLatLong(dstUV))), src->n);
+			ptr += 3;
+		}
+}
+
 static inline void cubemap_rendering(const Image *src, Image *dst)
 {
 	int s = dst->h, w = dst->w, n = dst->n;
