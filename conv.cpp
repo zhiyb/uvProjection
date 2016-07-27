@@ -8,8 +8,20 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-/* {{{ Vector maths */
+#ifndef timersub
+/* This is a copy from GNU C Library (GNU LGPL 2.1), sys/time.h. */
+# define timersub(a, b, result)                                               \
+  do {                                                                        \
+    (result)->tv_sec = (a)->tv_sec - (b)->tv_sec;                             \
+    (result)->tv_usec = (a)->tv_usec - (b)->tv_usec;                          \
+    if ((result)->tv_usec < 0) {                                              \
+      --(result)->tv_sec;                                                     \
+      (result)->tv_usec += 1000000;                                           \
+    }                                                                         \
+  } while (0)
+#endif
 
+/* {{{ Vector maths */
 struct vec2
 {
 	vec2() : x(0.), y(0.) {}
@@ -34,9 +46,9 @@ struct vec3
 
 	float x, y, z;
 };
-
 /* }}} */
 
+/* {{{ Image storage */
 struct Image
 {
 	bool load(char *path) { return !!(ptr = stbi_load(path, &w, &h, &n, 3)); }
@@ -55,7 +67,86 @@ struct Image
 	int w, h, n;
 	void *ptr;
 };
+/* }}} */
 
+/* {{{ Transformations */
+#ifndef CLASS
+static inline vec2 euclideanToLatLong(const vec3 &vec)
+{
+	return vec2(atan2(vec.z, vec.x), acos(vec.normalized().dot(vec3(0., 1., 0.))));
+}
+
+/* {{{ LatLong transformations */
+static inline void latLong_targetSize(Image *img, int *w, int *h)
+{
+	float x = sqrt((float)img->pixels() / 6.);
+	*h = round(x);
+	*w = *h * 6;
+}
+
+static inline vec2 latLong_latLongToUV(const vec2 &vec)
+{
+	return vec2(vec.x / 2. / M_PI, vec.y / M_PI);
+}
+/* }}} */
+
+/* {{{ Cubemap transformations */
+static inline vec3 cubemap_uvToEuclidean(const vec2 &vec)
+{
+	float u = vec.x * 6.;
+	int n = (int)u;
+	u -= n;
+	float v = vec.y * 2. - 1.;
+#if 0
+	switch (n) {
+	case 0:		// +X
+		return vec3(1., -v, u);
+	case 1:		// -X
+		return vec3(-1., -v, -u);
+	case 2:		// +Y
+		return vec3(-u, 1., v);
+	case 3:		// -Y
+		return vec3(-u, -1., -v);
+	case 4:		// +Z
+		return vec3(-u, -v, 1);
+	default:	// -Z
+		return vec3(u, -v, -1);
+	}
+#else
+#if 0
+	float p1 = 1., n1 = -1.;
+	float nu = -u, nv = -v;
+	const float *x[6] = {&p1, &n1, &nu, &nu, &nu, &u};
+	const float *y[6] = {&nv, &nv, &p1, &n1, &nv, &nv};
+	const float *z[6] = {&u, &nu, &v, &nv, &p1, &n1};
+	//n %= 6;
+	return vec3(*x[n], *y[n], *z[n]);
+#else
+	vec3 faces[6] = {
+		vec3(1., -v, u),	// +X
+		vec3(-1., -v, -u),	// -X
+		vec3(-u, 1., v),	// +Y
+		vec3(-u, -1., -v),	// -Y
+		vec3(-u, -v, 1),	// +Z
+		vec3(u, -v, -1),	// -Z
+	};
+	return faces[n % 6];
+#endif
+#endif
+}
+
+static inline vec2 cubemap_uvToLatLong(const vec2 &vec)
+{
+	return euclideanToLatLong(cubemap_uvToEuclidean(vec));
+}
+/* }}} */
+
+static void (*const targetSize)(Image *img, int *w, int *h)	= latLong_targetSize;
+// Source texture transformation
+static vec2 (*const latLongToUV)(const vec2 &vec)		= latLong_latLongToUV;
+// Target texture transformation
+static vec2 (*const uvToLatLong)(const vec2 &vec)		= cubemap_uvToLatLong;
+#else
 class Texture
 {
 public:
@@ -93,29 +184,14 @@ public:
 private:
 	vec3 uvToEuclidean(const vec2 &vec) const
 	{
-		float u = fmodf(vec.x * 6., 1.) * 2. - 1.;
+		float u = vec.x * 6.;
+		int n = (int)u;
+		u -= n;
 		float v = vec.y * 2. - 1.;
-		switch ((int)(vec.x * 6.)) {
-		case 0:		// +X
-			return vec3(1., -v, u);
-		case 1:		// -X
-			return vec3(-1., -v, -u);
-		case 2:		// +Y
-			return vec3(-u, 1., v);
-		case 3:		// -Y
-			return vec3(-u, -1., -v);
-		case 4:		// +Z
-			return vec3(-u, -v, 1);
-		default:	// -Z
-			return vec3(u, -v, -1);
-		}
 	}
 };
-
-static void render(Image *src, const vec2 &srcUV, Image *dst, const vec2 &dstUV)
-{
-	memcpy(dst->uv(dstUV), src->uv(srcUV), src->n);
-}
+#endif
+/* }}} */
 
 static void help()
 {
@@ -142,16 +218,22 @@ int main(int argc, char *argv[])
 	timersub(&tEnd, &tStart, &tElapsed);
 	printf("Time elapsed: %ld.%06ld\n", tElapsed.tv_sec, tElapsed.tv_usec);
 
-	Texture *source = new LatLong;
-	Texture *target = new Cubemap;
+#ifdef CLASS
+	LatLong *source = new LatLong;
+	Cubemap *target = new Cubemap;
 	if (!source || !target) {
 		fputs("Error creating texture transformation\n", stderr);
 		stbi_image_free(src.ptr);
 		return 3;
 	}
+#endif
 
 	dst.n = src.n;
+#ifndef CLASS
+	targetSize(&src, &dst.w, &dst.h);
+#else
 	target->targetSize(&src, &dst.w, &dst.h);
+#endif
 	if (!dst.alloc()) {
 		fputs("Error allocating image memory\n", stderr);
 		stbi_image_free(src.ptr);
@@ -161,11 +243,18 @@ int main(int argc, char *argv[])
 
 	puts("Rendering...");
 	gettimeofday(&tStart, NULL);
+	uint8_t *ptr = (uint8_t *)dst.ptr;
 	for (int u = 0; u != dst.w; u++)
 		for (int v = 0; v != dst.h; v++) {
-			vec2 dstUV((float)u / (float)dst.w, (float)v / (float)dst.h);
+			vec2 dstUV(((float)u + 0.5) / (float)dst.w, ((float)v + 0.5) / (float)dst.h);
+#ifndef CLASS
+			vec2 srcUV(latLongToUV(uvToLatLong(dstUV)));
+#else
 			vec2 srcUV(source->latLongToUV(target->uvToLatLong(dstUV)));
-			render(&src, srcUV, &dst, dstUV);
+#endif
+			memcpy(ptr, src.uv(srcUV), src.n);
+			ptr += 3;
+
 		}
 	gettimeofday(&tEnd, NULL);
 	timersub(&tEnd, &tStart, &tElapsed);
@@ -174,7 +263,7 @@ int main(int argc, char *argv[])
 
 	puts("Saving output image...");
 	gettimeofday(&tStart, NULL);
-	stbi_write_png(argv[2], dst.w, dst.h, dst.n, dst.ptr, dst.w * dst.n);
+	//stbi_write_png(argv[2], dst.w, dst.h, dst.n, dst.ptr, dst.w * dst.n);
 	gettimeofday(&tEnd, NULL);
 	timersub(&tEnd, &tStart, &tElapsed);
 	printf("Time elapsed: %ld.%06ld\n", tElapsed.tv_sec, tElapsed.tv_usec);
